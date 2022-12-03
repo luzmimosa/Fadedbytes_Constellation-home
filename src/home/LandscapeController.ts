@@ -1,10 +1,12 @@
 import {ConstellationManager} from "./sky/Constellation";
-import {LandScapeDrawer} from "./sky/LandScapeDrawer";
+import {LandScapeDrawer} from "./LandScapeDrawer";
 
 export class LandscapeController {
 
     private _canvas: HTMLCanvasElement | undefined;
     private drawer: LandScapeDrawer | undefined;
+
+    private tickCount = 0;
 
     set canvas(canvas: HTMLCanvasElement) {
         if (this._canvas) throw new Error("Canvas already set");
@@ -54,7 +56,8 @@ export class LandscapeController {
 
     // TICK
     private tick() {
-        this.drawer?.draw()
+        this.tickCount++;
+        this.drawer?.draw(this.tickCount);
     }
 
 

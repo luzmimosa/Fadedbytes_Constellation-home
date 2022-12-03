@@ -11,6 +11,15 @@ export class ConstellationManager {
     public addConstellation(constellation: Constellation, x: number, y: number, sizeMultiplier: number) {
         this.constellations.set(constellation, {x, y, sizeMultiplier});
     }
+
+    public handleClick(x: number, y: number) {
+        this.constellations.forEach((value, key) => {
+            // check if click is in constellation
+            if (x > value.x && x < value.x + key.width * value.sizeMultiplier && y > value.y && y < value.y + key.height * value.sizeMultiplier) {
+                key.onClick(key);
+            }
+        });
+    }
 }
 
 
@@ -24,7 +33,9 @@ export class Constellation {
     constructor(
         public readonly name: string,
         public readonly stars: ConstellationStar[],
-        public readonly connections: {starIndex: number, otherStarIndex: number}[]
+        public readonly connections: {starIndex: number, otherStarIndex: number}[],
+
+        public readonly onClick: (constellation: Constellation) => void = () => {}
     ) {
         for (let connection of connections) {
             if (connection.starIndex >= stars.length || connection.otherStarIndex >= stars.length) continue;
@@ -68,6 +79,7 @@ export function fromPositionsArray(
     positions: {x: number, y: number}[],
     lines: {starIndex: number, otherStarIndex: number}[],
     sizes: {smalls: number[], larges: number[]},
+    onClick: (constellation: Constellation) => void = () => {}
 ) {
     let stars: ConstellationStar[] = [];
 
@@ -78,7 +90,7 @@ export function fromPositionsArray(
         stars.push(new ConstellationStar(size, position));
     }
 
-    return new Constellation(name, stars, lines);
+    return new Constellation(name, stars, lines, onClick);
 
 }
 
@@ -141,6 +153,9 @@ export const CONSTELLATIONS = {
         "Mora",
         ConstellationData.MORA.stars,
         ConstellationData.MORA.lines,
-        ConstellationData.MORA.sizes
+        ConstellationData.MORA.sizes,
+        (constellation) => {
+            alert("You clicked on " + constellation.name);
+        }
     )
 }
