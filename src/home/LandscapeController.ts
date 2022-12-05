@@ -45,7 +45,7 @@ export class LandscapeController {
             this.handleResize();
         });
 
-        setInterval(() => this.tick(), 1000 / 165);
+        setInterval(() => this.tick(), 1000 / 60);
     }
 
     private init() {

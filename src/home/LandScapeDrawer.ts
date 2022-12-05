@@ -18,9 +18,20 @@ const BACKGROUND_STAR_COLORS = [
 const BACKGROUND_STAR_COLOR = () => {
     return BACKGROUND_STAR_COLORS[Math.floor(Math.random() * BACKGROUND_STAR_COLORS.length)];
 };
-const LINE_COLOR = "#52a2ff";
+const LINE_COLOR = () => "#ffffff09";
+const PULSE_COLOR = "#ffffff33";
 
 export class LandScapeDrawer {
+
+    private static DEBUG = {
+        activated: true,
+
+        drawer: {
+            totalFrames: 0,
+            framesLastSecond: 0,
+            framesUntilLastSecond: 0
+        }
+    }
 
     private readonly starDensity: number = 0.005;
     private backgroundStars: Array<{x: number, y: number, size: StarSize}> = [];
@@ -41,6 +52,13 @@ export class LandScapeDrawer {
     ) {
         this.calculateGradients()
         this.calculateBackgroundStars()
+
+        if (LandScapeDrawer.DEBUG.activated) {
+            setInterval(() => {
+                LandScapeDrawer.DEBUG.drawer.framesLastSecond = LandScapeDrawer.DEBUG.drawer.totalFrames - LandScapeDrawer.DEBUG.drawer.framesUntilLastSecond;
+                LandScapeDrawer.DEBUG.drawer.framesUntilLastSecond = LandScapeDrawer.DEBUG.drawer.totalFrames;
+            }, 1000);
+        }
     }
 
     // SETUP
@@ -72,10 +90,23 @@ export class LandScapeDrawer {
     // DRAW
 
     public draw(seed: number) {
+
+        if (LandScapeDrawer.DEBUG.activated) LandScapeDrawer.DEBUG.drawer.totalFrames++;
+
         this.removeBackground();
         this.drawSky(seed);
         this.drawLinks(seed);
         this.drawStars(seed);
+
+        this.drawDebug()
+    }
+
+    private drawDebug() {
+
+        if (!LandScapeDrawer.DEBUG.activated) return;
+        this.context.fillStyle = "#FFFFFF";
+        this.context.font = "10px Arial";
+        this.context.fillText("FPS: " + LandScapeDrawer.DEBUG.drawer.framesLastSecond, 10, 10);
     }
 
     private removeBackground() {
@@ -91,9 +122,9 @@ export class LandScapeDrawer {
 
         for (let backgroundStar of this.backgroundStars) {
             if (backgroundStar.size === StarSize.Small) {
-                this.drawSmallStar(backgroundStar.x, backgroundStar.y, BACKGROUND_STAR_COLOR());
+                this.drawSmallStar(backgroundStar.x, backgroundStar.y, false, BACKGROUND_STAR_COLOR());
             } else {
-                this.drawLargeStar(backgroundStar.x, backgroundStar.y, seed, BACKGROUND_STAR_COLOR());
+                this.drawLargeStar(backgroundStar.x, backgroundStar.y, false, seed, BACKGROUND_STAR_COLOR());
             }
         }
     }
@@ -125,54 +156,46 @@ export class LandScapeDrawer {
             };
             let sizeMultiplier = info.sizeMultiplier
 
-            for (let line of constellation.lines) {
+            for (let i = 0; i < constellation.lines.length; i++) {
+
+                let line = constellation.lines[i];
                 let x1 = originPosition.x + (line.start.relativePosition.x * sizeMultiplier);
                 let y1 = originPosition.y + (line.start.relativePosition.y * sizeMultiplier);
                 let x2 = originPosition.x + (line.end.relativePosition.x * sizeMultiplier);
                 let y2 = originPosition.y + (line.end.relativePosition.y * sizeMultiplier);
 
-                let lineSeed = seed
-                    + line.start.relativePosition.x * 700
-                    + line.start.relativePosition.y * 700
-                    + line.end.relativePosition.x * 700
-                    + line.end.relativePosition.y * 700;
 
-                //use Math.sin to get a value between 0 and 255
-                let originOpacity = Math.floor((Math.sin((lineSeed * 2) / 4) + 1) / 2 * 128) - (seed % 4);
-                let endOpacity = Math.floor((Math.sin((lineSeed) / 4) + 1) / 2 * 128) - (seed % 4);
 
-                this.drawLine(x1, y1, x2, y2, originOpacity, endOpacity);
+                this.drawLine(
+                    x1, y1,
+                    x2, y2,
+                    Math.abs(Math.sin((seed * i) / 256)),
+                );
             }
         }
     }
 
-    private drawLine(x1: number, y1: number, x2: number, y2: number, originOpacity: number = 255, endOpacity: number = 255) {
-
-        if (originOpacity > 255) originOpacity = 255;
-        if (originOpacity < 0) originOpacity = 0;
-        if (endOpacity > 255) endOpacity = 255;
-        if (endOpacity < 0) endOpacity = 0;
+    private drawLine(x1: number, y1: number, x2: number, y2: number, pulseLocation: number = 0.5) {
 
         this.context.beginPath();
+        let gradient = this.context.createLinearGradient(x1 / 2, y1 / 2, x2 * 2, y2 * 2);
 
-        let originHexOpacity = originOpacity.toString(16)
-        let endHexOpacity = endOpacity.toString(16)
-        if (originHexOpacity.length == 1) {
-            originHexOpacity = "0" + originHexOpacity;
-        }
-        if (endHexOpacity.length == 1) {
-            endHexOpacity = "0" + endHexOpacity;
+        gradient.addColorStop(0, LINE_COLOR());
+        gradient.addColorStop(1, LINE_COLOR());
+
+        if (pulseLocation >= 0 && pulseLocation <= 1) {
+            gradient.addColorStop(pulseLocation, PULSE_COLOR);
         }
 
-        // set line color to gradient from x1,y1 to x2,y2 with opacity
-        let gradient = this.context.createLinearGradient(x1, y1, x2, y2);
-        gradient.addColorStop(0, LINE_COLOR + originHexOpacity);
-        gradient.addColorStop(1, LINE_COLOR + endHexOpacity);
         this.context.strokeStyle = gradient;
-
+        this.context.lineWidth = 1;
         this.context.moveTo(x1, y1);
         this.context.lineTo(x2, y2);
+
         this.context.stroke();
+
+        this.context.closePath();
+
     }
 
     private drawStars(seed: number) {
@@ -197,40 +220,42 @@ export class LandScapeDrawer {
         }
     }
 
-    private drawStar(star: ConstellationStar, x: number, y: number, seed: number, color: string = STAR_COLOR()) {
+    private drawStar(star: ConstellationStar, x: number, y: number, seed: number, bright: boolean = false, color: string = STAR_COLOR()) {
         switch (star.size) {
             case StarSize.Small:
-                this.drawSmallStar(x, y, color);
+                this.drawSmallStar(x, y, bright, color);
                 break;
             case StarSize.Medium:
-                this.drawMediumStar(x, y, seed, color);
+                this.drawMediumStar(x, y, bright, seed, color);
                 break;
             case StarSize.Large:
-                this.drawLargeStar(x, y, seed, color);
+                this.drawLargeStar(x, y, bright, seed, color);
                 break;
         }
     }
 
-    private drawSmallStar(x: number, y: number, color: string = STAR_COLOR()) {
+    private drawSmallStar(x: number, y: number, bright: boolean = false, color: string = STAR_COLOR()) {
         this.context.beginPath();
         this.context.fillStyle = color;
 
         this.context.shadowColor = color;
         this.context.shadowBlur = 2;
 
-        this.context.arc(x, y, 0.8, 0, 2 * Math.PI);
+        this.context.fillRect(x, y, 0.8 * 2, 0.8 * 2);
         this.context.fill();
 
         this.context.shadowBlur = 0;
         this.context.closePath();
     }
 
-    private drawMediumStar(x: number, y: number, seed: number, color: string = STAR_COLOR()) {
+    private drawMediumStar(x: number, y: number, bright: boolean = false, seed: number, color: string = STAR_COLOR()) {
         this.context.beginPath();
         this.context.fillStyle = color;
 
-        this.context.shadowColor = color;
-        this.context.shadowBlur = 10;
+        if (bright) {
+            this.context.shadowColor = color;
+            this.context.shadowBlur = 10;
+        }
 
         this.context.arc(x, y, 1.5, 0, 2 * Math.PI);
         this.context.fill();
@@ -239,12 +264,14 @@ export class LandScapeDrawer {
         this.context.closePath();
     }
 
-    private drawLargeStar(x: number, y: number, seed: number, color: string = STAR_COLOR()) {
+    private drawLargeStar(x: number, y: number, bright: boolean = false, seed: number, color: string = STAR_COLOR()) {
         this.context.beginPath();
         this.context.fillStyle = color;
 
-        this.context.shadowColor = color;
-        this.context.shadowBlur = 20;
+        if (bright) {
+            this.context.shadowColor = color;
+            this.context.shadowBlur = 20;
+        }
 
         this.context.arc(x, y, 2.5, 0, 2 * Math.PI);
         this.context.fill();
